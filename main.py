@@ -1,4 +1,8 @@
 import streamlit as st
+from streamlit_webrtc import webrtc_streamer
+import cv2
+import numpy as np
+from pyzbar import pyzbar
 
 def main():
     st.title("Ứng dụng quét mã QR")
@@ -9,43 +13,31 @@ def main():
     # Hiển thị các ô nhập liệu tương ứng
     qr_codes = []
     for i in range(int(num_boxes)):
-        st.write(f"Mã QR {i+1}:")
         qr_code = st.empty()
         qr_codes.append(qr_code)
     
-    # Thêm mã JavaScript để quét mã QR bằng camera
-    scanner_script = """
-    <script src="https://rawgit.com/schmich/instascan-builds/master/instascan.min.js"></script>
-    <script>
-        var scanner = new Instascan.Scanner({ video: document.getElementById('preview') });
-        scanner.addListener('scan', function (content) {
-            alert("Mã QR đã quét: " + content);
-            var index = window.location.search.split("index=")[1];
-            var qrCodeElement = window.parent.document.querySelectorAll('.element-container')[index].querySelector('.stTextInput input');
-            qrCodeElement.value = content;
-        });
-        Instascan.Camera.getCameras().then(function (cameras) {
-            if (cameras.length > 0) {
-                scanner.start(cameras[0]);
-            } else {
-                console.error('Không tìm thấy camera.');
-            }
-        }).catch(function (e) {
-            console.error(e);
-        });
-    </script>
-    """
+    # Hàm xử lý frame từ camera
+    def video_frame_callback(frame):
+        img = frame.to_ndarray(format="bgr24")
+        barcodes = pyzbar.decode(img)
+        
+        for barcode in barcodes:
+            barcode_data = barcode.data.decode("utf-8")
+            
+            for i, qr_code in enumerate(qr_codes):
+                if qr_code.text_input("", value=barcode_data, key=f"qr_code_{i}"):
+                    break
+        
+        return img
     
-    # Hiển thị khung preview camera
-    for i in range(int(num_boxes)):
-        st.write(f'<iframe src="/?index={i}" width="400" height="300" frameborder="0"></iframe>', unsafe_allow_html=True)
-        st.write(scanner_script, unsafe_allow_html=True)
+    # Hiển thị camera và quét mã QR
+    webrtc_streamer(key="qr_scanner", video_frame_callback=video_frame_callback)
     
     # Xử lý khi người dùng nhấn nút Submit
     if st.button("Submit"):
         st.write("Các mã QR đã nhập:")
         for i, qr_code in enumerate(qr_codes):
-            st.write(f"{i+1}. {qr_code.text_input('')}")
+            st.write(f"{i+1}. {qr_code.text_input('', key=f'qr_code_{i}')}")
 
 if __name__ == "__main__":
     main()
