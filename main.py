@@ -1,54 +1,52 @@
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
-import qrcode
 import cv2
-import numpy as np
+from pyzbar import pyzbar
 
 def main():
-    st.title("Ứng dụng quét mã QR")
+    st.title("QR Code and Barcode Scanner App")
     
-    # Người dùng nhập số lượng
-    num_boxes = st.number_input("Nhập số lượng mã QR cần quét:", min_value=1, value=1, step=1)
+    # User input for the number of codes to scan
+    num_boxes = st.number_input("Enter the number of codes to scan:", min_value=1, value=1, step=1)
     
-    # Hiển thị các ô nhập liệu tương ứng
-    qr_codes = []
-    for i in range(int(num_boxes)):
-        qr_code = st.empty()
-        qr_codes.append(qr_code)
+    # Initialize a list to store the scanned codes
+    scanned_codes = []
     
-    # Hàm xử lý frame từ camera
+    # Callback function to process frames from the camera
     def video_frame_callback(frame):
         img = frame.to_ndarray(format="bgr24")
         
-        # Chuyển đổi hình ảnh sang grayscale
+        # Convert the image to grayscale
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         
-        # Tạo đối tượng QRCodeDetector
-        qr_detector = cv2.QRCodeDetector()
+        # Detect and decode QR codes and barcodes
+        decoded_objects = pyzbar.decode(gray)
         
-        # Phát hiện và giải mã mã QR
-        data, _, _ = qr_detector.detectAndDecode(gray)
-        
-        if data:
-            for i, qr_code in enumerate(qr_codes):
-                if qr_code.text_input("", value=data, key=f"qr_code_{i}"):
-                    break
+        for obj in decoded_objects:
+            # Get the data and type of the code
+            data = obj.data.decode("utf-8")
+            code_type = obj.type
+            
+            # Check if the code has not been scanned before
+            if data not in scanned_codes and len(scanned_codes) < num_boxes:
+                scanned_codes.append(data)
+                st.write(f"Scanned {code_type}: {data}")
         
         return img
     
-    # Hiển thị camera và quét mã QR
+    # Display the camera and scan codes
     webrtc_streamer(
-        key="qr_scanner",
+        key="code_scanner",
         mode=WebRtcMode.SENDRECV,
         rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}),
         video_frame_callback=video_frame_callback
     )
     
-    # Xử lý khi người dùng nhấn nút Submit
-    if st.button("Submit"):
-        st.write("Các mã QR đã nhập:")
-        for i, qr_code in enumerate(qr_codes):
-            st.write(f"{i+1}. {qr_code.text_input('', key=f'qr_code_{i}')}")
+    # Display the scanned codes
+    if len(scanned_codes) > 0:
+        st.write("Scanned Codes:")
+        for code in scanned_codes:
+            st.write(code)
 
 if __name__ == "__main__":
     main()
