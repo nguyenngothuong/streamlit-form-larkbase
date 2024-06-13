@@ -1,7 +1,8 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
+import qrcode
+import cv2
 import numpy as np
-from pyzbar import pyzbar
 
 def main():
     st.title("Ứng dụng quét mã QR")
@@ -18,19 +19,30 @@ def main():
     # Hàm xử lý frame từ camera
     def video_frame_callback(frame):
         img = frame.to_ndarray(format="bgr24")
-        barcodes = pyzbar.decode(img)
         
-        for barcode in barcodes:
-            barcode_data = barcode.data.decode("utf-8")
-            
+        # Chuyển đổi hình ảnh sang grayscale
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # Tạo đối tượng QRCodeDetector
+        qr_detector = cv2.QRCodeDetector()
+        
+        # Phát hiện và giải mã mã QR
+        data, _, _ = qr_detector.detectAndDecode(gray)
+        
+        if data:
             for i, qr_code in enumerate(qr_codes):
-                if qr_code.text_input("", value=barcode_data, key=f"qr_code_{i}"):
+                if qr_code.text_input("", value=data, key=f"qr_code_{i}"):
                     break
         
         return img
     
     # Hiển thị camera và quét mã QR
-    webrtc_streamer(key="qr_scanner", video_frame_callback=video_frame_callback)
+    webrtc_streamer(
+        key="qr_scanner",
+        mode=WebRtcMode.SENDRECV,
+        rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}),
+        video_frame_callback=video_frame_callback
+    )
     
     # Xử lý khi người dùng nhấn nút Submit
     if st.button("Submit"):
